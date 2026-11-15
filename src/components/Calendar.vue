@@ -4,8 +4,7 @@ import './css/Calendar.css'
 
 const emit = defineEmits(['close'])
 
-// ВСТАВЬТЕ ВАШ URL ВЕБ-ПРИЛОЖЕНИЯ ИЗ GOOGLE APPS SCRIPT:
-const API_URL = 'https://google.com'
+const API_URL = 'https://script.google.com/macros/s/AKfycbxkc1wljack2jwlh5DF0TJ_UJe2INFQkU7BBy1j__gEokKqpC_xUVnb9clUExKJzrtA/exec'
 
 const step = ref('date') // 'date' -> 'time' -> 'form'
 const selectedDate = ref('')
