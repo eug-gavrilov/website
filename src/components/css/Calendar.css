@@ -266,3 +266,29 @@
     gap: 0.4rem;
   }
 }
+
+.booking-loading {
+  text-align: center;
+  font-size: 1.25rem;
+  color: #5a4326;
+  padding: 2rem 0;
+}
+
+.booking-slot-btn.is-busy {
+  background-color: #e2dad0;
+  color: #9e9283;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.booking-slot-btn.is-busy:hover {
+  background-color: #e2dad0;
+}
+
+.slot-badge {
+  font-size: 1rem;
+  font-weight: 400;
+  display: inline-block;
+  margin-left: 0.5rem;
+}
+

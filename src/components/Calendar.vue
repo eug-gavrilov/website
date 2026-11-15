@@ -4,16 +4,23 @@ import './css/Calendar.css'
 
 const emit = defineEmits(['close'])
 
+// ВСТАВЬТЕ ВАШ URL ВЕБ-ПРИЛОЖЕНИЯ ИЗ GOOGLE APPS SCRIPT:
+const API_URL = 'https://google.com'
+
 const step = ref('date') // 'date' -> 'time' -> 'form'
 const selectedDate = ref('')
 const selectedTime = ref('')
 
-// Текущий отображаемый месяц в календаре
+const isLoadingSlots = ref(false)
+const isSubmitting = ref(false)
+const busyIntervals = ref([])
+
 const today = new Date()
 today.setHours(0, 0, 0, 0)
 const currentMonth = ref(new Date(today.getFullYear(), today.getMonth(), 1))
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const baseTimeSlots = ['14:00', '16:00', '18:00', '20:00']
 
 const form = ref({
   service: '',
@@ -22,8 +29,6 @@ const form = ref({
   comment: ''
 })
 
-const timeSlots = ['14:00', '16:00', '18:00', '20:00']
-
 const services = [
   'Natural lips enhancement',
   'Powder brows enhancement',
@@ -31,7 +36,6 @@ const services = [
   'Free consultation'
 ]
 
-// Заголовок месяца и года (например, "June 2026")
 const monthYearTitle = computed(() => {
   return currentMonth.value.toLocaleDateString('en-US', {
     month: 'long',
@@ -39,26 +43,20 @@ const monthYearTitle = computed(() => {
   })
 })
 
-// Генерация ячеек сетки календаря (с понедельника по воскресенье)
 const calendarDays = computed(() => {
   const year = currentMonth.value.getFullYear()
   const month = currentMonth.value.getMonth()
-
   const firstDayOfMonth = new Date(year, month, 1)
   const daysInMonth = new Date(year, month + 1, 0).getDate()
 
-  // Сдвиг для начала недели с понедельника (0 - Пн, 6 - Вс)
   let startOffset = firstDayOfMonth.getDay() - 1
   if (startOffset < 0) startOffset = 6
 
   const cells = []
-
-  // Пустые ячейки до 1-го числа
   for (let i = 0; i < startOffset; i++) {
     cells.push({ day: null, dateStr: null, isPast: true })
   }
 
-  // Числа месяца
   for (let day = 1; day <= daysInMonth; day++) {
     const cellDate = new Date(year, month, day)
     const yyyy = cellDate.getFullYear()
@@ -71,8 +69,23 @@ const calendarDays = computed(() => {
       isPast: cellDate < today
     })
   }
-
   return cells
+})
+
+// Проверка, пересекается ли слот (длительностью 2 часа) с событиями в Google Календаре
+const computedSlots = computed(() => {
+  if (!selectedDate.value) return []
+
+  return baseTimeSlots.map(time => {
+    const slotStart = new Date(`${selectedDate.value}T${time}:00`).getTime()
+    const slotEnd = slotStart + 2 * 60 * 60 * 1000
+
+    const isBusy = busyIntervals.value.some(interval => {
+      return slotStart < interval.end && slotEnd > interval.start
+    })
+
+    return { time, isBusy }
+  })
 })
 
 const changeMonth = (delta) => {
@@ -83,10 +96,25 @@ const changeMonth = (delta) => {
   )
 }
 
-const selectDay = (cell) => {
+// Запрос занятости в Google Календаре при выборе дня
+const selectDay = async (cell) => {
   if (!cell.day || cell.isPast) return
   selectedDate.value = cell.dateStr
   step.value = 'time'
+  isLoadingSlots.value = true
+  busyIntervals.value = []
+
+  try {
+    const response = await fetch(`${API_URL}?date=${cell.dateStr}`)
+    const data = await response.json()
+    if (data.busy) {
+      busyIntervals.value = data.busy
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки расписания:', error)
+  } finally {
+    isLoadingSlots.value = false
+  }
 }
 
 const formattedDate = computed(() => {
@@ -110,27 +138,56 @@ const formattedDateShort = computed(() => {
   }).replace(/,/g, '')
 })
 
-const selectTime = (time) => {
-  selectedTime.value = time
+const selectTime = (slot) => {
+  if (slot.isBusy) return
+  selectedTime.value = slot.time
   step.value = 'form'
 }
 
-const submitBooking = () => {
+// Отправка брони в Google Календарь
+const submitBooking = async () => {
   if (!form.value.service || !form.value.name || !form.value.phone) {
     alert('Пожалуйста, заполните обязательные поля')
     return
   }
 
-  const message =
-    `Здравствуйте, Дарья! Хочу записаться:\n` +
-    `Дата: ${formattedDate.value} в ${selectedTime.value}\n` +
-    `Услуга: ${form.value.service}\n` +
-    `Имя: ${form.value.name}\n` +
-    `Телефон: ${form.value.phone}` +
-    (form.value.comment ? `\nКомментарий: ${form.value.comment}` : '')
+  isSubmitting.value = true
 
-  window.open(`https://wa.me{encodeURIComponent(message)}`, '_blank')
-  emit('close')
+  try {
+    // Используем text/plain, чтобы избежать CORS preflight-запросов в Google Apps Script
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        date: selectedDate.value,
+        time: selectedTime.value,
+        service: form.value.service,
+        name: form.value.name,
+        phone: form.value.phone,
+        comment: form.value.comment
+      })
+    })
+
+    const result = await response.json()
+
+    if (result.status === 'conflict') {
+      alert('К сожалению, это время только что заняли. Выберите другой слот.')
+      step.value = 'time'
+      await selectDay({ day: 1, dateStr: selectedDate.value, isPast: false })
+      return
+    }
+
+    if (result.status === 'success') {
+      alert('Вы успешно записаны! Событие добавлено в расписание мастера.')
+      emit('close')
+    } else {
+      throw new Error(result.message || 'Ошибка сервера')
+    }
+  } catch (error) {
+    alert('Не удалось завершить запись. Попробуйте позже или напишите мастеру в WhatsApp.')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -197,15 +254,21 @@ const submitBooking = () => {
 
       <!-- ШАГ 2: Выбор времени -->
       <div v-else-if="step === 'time'" class="booking-step booking-slots">
-        <button
-          v-for="slot in timeSlots"
-          :key="slot"
-          type="button"
-          class="booking-slot-btn"
-          @click="selectTime(slot)"
-        >
-          {{ slot }}
-        </button>
+        <p v-if="isLoadingSlots" class="booking-loading">Проверяем свободное время...</p>
+
+        <template v-else>
+          <button
+            v-for="slot in computedSlots"
+            :key="slot.time"
+            type="button"
+            class="booking-slot-btn"
+            :class="{ 'is-busy': slot.isBusy }"
+            :disabled="slot.isBusy"
+            @click="selectTime(slot)"
+          >
+            {{ slot.time }} <span v-if="slot.isBusy" class="slot-badge">(Занято)</span>
+          </button>
+        </template>
       </div>
 
       <!-- ШАГ 3: Выбор сервиса и контакты -->
@@ -256,8 +319,8 @@ const submitBooking = () => {
             ></textarea>
           </div>
 
-          <button type="submit" class="booking-submit">
-            Забронировать
+          <button type="submit" class="booking-submit" :disabled="isSubmitting">
+            {{ isSubmitting ? 'Бронируем...' : 'Забронировать' }}
           </button>
         </form>
 
