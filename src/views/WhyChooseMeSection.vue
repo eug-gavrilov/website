@@ -122,15 +122,15 @@ class="sidebar-backdrop"
 
 <aside class="why-sidebar" :class="{ 'is-open': isMenuOpen }">
   <nav class="why-sidebar__nav">
-    <a
+    <router-link
     v-for="(link, index) in sidebarLinks"
     :key="index"
-    :href="link.href"
+    :to="link.href"
     class="why-sidebar__link"
     @click="closeMenu"
     >
     {{ link.label }}
-  </a>
+  </router-link>
 </nav>
 </aside>
 </section>
