@@ -160,23 +160,40 @@
   }
   
   .hero__scroll-down {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: transparent;
+    border: none;
+    color: #61482c;
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 4;
+    opacity: 0.7;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+
+  .hero__scroll-down:hover {
+    opacity: 1;
+    transform: translate(-50%, 3px);
+  }
+
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Мягкий переход на стыке первого и второго экранов */
+.hero::after {
+  content: '';
   position: absolute;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: transparent;
-  border: none;
-  color: #61482c;
-  font-size: 1.5rem;
-  cursor: pointer;
-  z-index: 4;
-  opacity: 0.7;
-  transition: opacity 0.2s, transform 0.2s;
-}
-
-.hero__scroll-down:hover {
-  opacity: 1;
-  transform: translate(-50%, 3px);
-}
-
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 45px;
+  background: linear-gradient(180deg, rgba(244, 238, 228, 0) 0%, #efe7da 100%);
+  pointer-events: none;
+  z-index: 2;
 }
